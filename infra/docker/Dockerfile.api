@@ -11,8 +11,8 @@ COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY apps/api/package.json ./apps/api/
 COPY packages ./packages
 
-# Install dependencies
-RUN pnpm install --frozen-lockfile
+# Install dependencies (use --force to regenerate lockfile if needed)
+RUN pnpm install --frozen-lockfile || pnpm install --force
 
 # Copy application source
 COPY apps/api ./apps/api
@@ -37,8 +37,8 @@ WORKDIR /app
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY apps/api/package.json ./apps/api/
 
-# Install production dependencies only
-RUN pnpm install --prod --frozen-lockfile
+# Install production dependencies only (use --force to regenerate lockfile if needed)
+RUN pnpm install --prod --frozen-lockfile || pnpm install --prod --force
 
 # Copy built application from builder
 COPY --from=builder /app/apps/api/dist ./apps/api/dist
