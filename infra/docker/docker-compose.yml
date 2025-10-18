@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # PostgreSQL Database
   postgres:
@@ -8,7 +6,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
+      POSTGRES_HOST_AUTH_METHOD: trust
       POSTGRES_DB: innovatex
       PGDATA: /var/lib/postgresql/data/pgdata
     ports:
@@ -89,7 +87,7 @@ services:
     restart: unless-stopped
     environment:
       NODE_ENV: development
-      DATABASE_URL: postgresql://postgres:password@postgres:5432/innovatex?schema=public
+      DATABASE_URL: postgresql://postgres@postgres:5432/innovatex?schema=public
       REDIS_URL: redis://redis:6379
       JWT_SECRET: your-super-secret-jwt-key-change-in-production
       JWT_REFRESH_SECRET: your-super-secret-refresh-key-change-in-production
