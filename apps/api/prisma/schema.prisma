@@ -1,0 +1,314 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// ENUMS
+// ============================================
+
+enum Role {
+  ADMIN
+  JUDGE
+  PARTICIPANT
+  VOLUNTEER
+}
+
+enum TeamStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum SubmissionStatus {
+  DRAFT
+  SUBMITTED
+  UNDER_REVIEW
+  REVIEWED
+  FINALIST
+  WINNER
+}
+
+// ============================================
+// MODELS
+// ============================================
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String?
+  name      String
+  role      Role     @default(PARTICIPANT)
+  phone     String?
+  linkedin  String?
+  github    String?
+  bio       String?
+  avatar    String?
+  institute String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  teamsAsLeader Team[]         @relation("TeamLeader")
+  teamMembers   TeamMember[]
+  scores        Score[]
+  judge         Judge?
+  refreshTokens RefreshToken[]
+
+  @@index([email])
+  @@index([role])
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([token])
+  @@map("refresh_tokens")
+}
+
+model Team {
+  id          String     @id @default(cuid())
+  name        String
+  institute   String
+  idea        String?    @db.Text
+  description String?    @db.Text
+  leaderId    String
+  leader      User       @relation("TeamLeader", fields: [leaderId], references: [id])
+  members     TeamMember[]
+  status      TeamStatus @default(PENDING)
+  rejectionReason String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  submissions Submission[]
+
+  @@index([leaderId])
+  @@index([status])
+  @@index([institute])
+  @@map("teams")
+}
+
+model TeamMember {
+  id        String   @id @default(cuid())
+  teamId    String
+  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      String   @default("Member")
+  createdAt DateTime @default(now())
+
+  @@unique([teamId, userId])
+  @@index([teamId])
+  @@index([userId])
+  @@map("team_members")
+}
+
+model Submission {
+  id          String           @id @default(cuid())
+  teamId      String
+  team        Team             @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  title       String
+  description String?          @db.Text
+  demoUrl     String?
+  repoUrl     String?
+  videoUrl    String?
+  status      SubmissionStatus @default(DRAFT)
+  files       FileMeta[]
+  scores      Score[]
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  judgeAssignments SubmissionOnJudge[]
+
+  @@index([teamId])
+  @@index([status])
+  @@map("submissions")
+}
+
+model FileMeta {
+  id           String     @id @default(cuid())
+  submissionId String
+  submission   Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  url          String
+  filename     String
+  size         Int
+  mimeType     String
+  uploadedBy   String
+  uploadedAt   DateTime   @default(now())
+
+  @@index([submissionId])
+  @@map("file_meta")
+}
+
+model Judge {
+  id              String              @id @default(cuid())
+  userId          String              @unique
+  user            User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bio             String?             @db.Text
+  expertise       String[]
+  assignedSubmissions SubmissionOnJudge[]
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  @@index([userId])
+  @@map("judges")
+}
+
+model SubmissionOnJudge {
+  id           String     @id @default(cuid())
+  submissionId String
+  submission   Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  judgeId      String
+  judge        Judge      @relation(fields: [judgeId], references: [id], onDelete: Cascade)
+  assignedAt   DateTime   @default(now())
+  isBlind      Boolean    @default(true)
+
+  @@unique([submissionId, judgeId])
+  @@index([submissionId])
+  @@index([judgeId])
+  @@map("submissions_on_judges")
+}
+
+model Score {
+  id           String     @id @default(cuid())
+  submissionId String
+  submission   Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  judgeId      String
+  judge        User       @relation(fields: [judgeId], references: [id])
+  rubricScores Json // { innovation: 8, impact: 7, feasibility: 6, presentation: 9 }
+  total        Float
+  comments     String?    @db.Text
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@unique([submissionId, judgeId])
+  @@index([submissionId])
+  @@index([judgeId])
+  @@map("scores")
+}
+
+model Rubric {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  criteria    Json // [{ name: 'Innovation', weight: 0.3, maxScore: 10 }]
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("rubrics")
+}
+
+model Sponsor {
+  id          String       @id @default(cuid())
+  name        String
+  tier        SponsorTier
+  logo        String?
+  website     String?
+  description String?      @db.Text
+  order       Int          @default(0)
+  isActive    Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([tier])
+  @@map("sponsors")
+}
+
+enum SponsorTier {
+  PLATINUM
+  GOLD
+  SILVER
+  BRONZE
+  COMMUNITY
+}
+
+model Announcement {
+  id        String   @id @default(cuid())
+  title     String
+  content   String   @db.Text
+  priority  Priority @default(NORMAL)
+  isPublic  Boolean  @default(true)
+  authorId  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([priority])
+  @@index([isPublic])
+  @@map("announcements")
+}
+
+enum Priority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+model Timeline {
+  id          String   @id @default(cuid())
+  title       String
+  description String?  @db.Text
+  startTime   DateTime
+  endTime     DateTime?
+  location    String?
+  type        String   @default("event") // event, deadline, workshop
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([startTime])
+  @@map("timeline")
+}
+
+model FAQ {
+  id        String   @id @default(cuid())
+  question  String
+  answer    String   @db.Text
+  category  String?
+  order     Int      @default(0)
+  isPublic  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([category])
+  @@map("faqs")
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String
+  action    String
+  entity    String
+  entityId  String
+  changes   Json?
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([entity, entityId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+model Settings {
+  id    String @id @default(cuid())
+  key   String @unique
+  value Json
+  updatedAt DateTime @updatedAt
+
+  @@map("settings")
+}
